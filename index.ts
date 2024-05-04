@@ -1,33 +1,10 @@
+// TODO: Support dynamically extending css to a version with custom aliases.
+
 export function isNode() {
     return typeof document === "undefined";
 }
 import type { LengthOrPercentage, StrictStyles } from "./cssTypes";
-
-export function setCSS(module: NodeJS.Module, text: string) {
-    if (isNode()) return;
-    let id = "css-" + module.id;
-    let style = document.getElementById(id);
-    if (!style) {
-        style = document.createElement("style");
-        document.head.appendChild(style);
-        style.id = "css-" + module.id;
-    }
-    style.innerHTML = text;
-}
-
-export function className(strings: TemplateStringsArray, ...variables: unknown[]) {
-    let result = "";
-    for (let i = 0; i < strings.length; i++) {
-        result += strings[i];
-        let varValue = variables[i];
-        if (varValue || varValue === 0) {
-            result += String(varValue);
-        }
-    }
-    // Remove extra whitespace and newlines, for readability
-    return result.replace(/\n/g, " ").replace(/ +/g, " ");
-}
-
+module.allowclient = true;
 
 type Styles = {
     [key: string]: {
