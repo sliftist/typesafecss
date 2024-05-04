@@ -1,0 +1,10 @@
+{
+    "name": "typesafecss",
+    "version": "0.1.1",
+    "scripts": {
+        "xbuild": "yarn typenode css.ts"
+    },
+    "devDependencies": {
+        "typenode": "^5.3.10"
+    }
+}
