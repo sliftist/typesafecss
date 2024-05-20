@@ -96,6 +96,7 @@ let nonCallAliases = {
     pointer: (c: CSSHelperTypeBase) => c.cursor("pointer"),
     ellipsis: (c: CSSHelperTypeBase) => c.overflow("hidden").textOverflow("ellipsis").whiteSpace("nowrap").display("inline-block"),
     overflowAuto: (c: CSSHelperTypeBase) => c.overflow("auto"),
+    overflowHidden: (c: CSSHelperTypeBase) => c.overflow("hidden"),
     scroll: (c: CSSHelperTypeBase) => c.overflow("auto"),
     scrollX: (c: CSSHelperTypeBase) => c.overflowX("auto").overflowY("hidden"),
     scrollY: (c: CSSHelperTypeBase) => c.overflowY("auto").overflowX("hidden"),
