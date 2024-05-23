@@ -100,11 +100,12 @@ let nonCallAliases = {
     scroll: (c: CSSHelperTypeBase) => c.overflow("auto"),
     scrollX: (c: CSSHelperTypeBase) => c.overflowX("auto").overflowY("hidden"),
     scrollY: (c: CSSHelperTypeBase) => c.overflowY("auto").overflowX("hidden"),
+    italic: (c: CSSHelperTypeBase) => c.fontStyle("italic"),
+    boldStyle: (c: CSSHelperTypeBase) => c.fontWeight("bold"),
 };
 let callAliases = {
-    hbox: (c: CSSHelperTypeBase, gap: number, columnGap?: number) => c.display("flex").flexDirection("row").rowGap(gap).columnGap(columnGap ?? gap).alignItems("center"),
-    vbox: (c: CSSHelperTypeBase, gap: number, rowGap?: number) => c.display("flex").flexDirection("column").columnGap(gap).rowGap(rowGap ?? gap).alignItems("start"),
-    button: (c: CSSHelperTypeBase): CSSHelperTypeBase => c.cursor("pointer").userSelect("none").filter("brightness(1.1)", "hover"),
+    hbox: (c: CSSHelperTypeBase, gap: number, rowGap?: number) => c.display("flex").flexDirection("row").rowGap(rowGap ?? gap).columnGap(gap).alignItems("center"),
+    vbox: (c: CSSHelperTypeBase, gap: number, columnGap?: number) => c.display("flex").flexDirection("column").rowGap(gap).columnGap(columnGap ?? gap).alignItems("start"),
     pad: (c: CSSHelperTypeBase, value: number, horizontalValue?: number): CSSHelperTypeBase => {
         if (horizontalValue !== undefined) return c.padding(`${value}px ${horizontalValue}px` as any);
         return c.padding(value);
