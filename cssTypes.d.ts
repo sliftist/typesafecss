@@ -1,5 +1,5 @@
 
-export type Length = number | `${number}px` | `${number}%` | `${number}em` | `${number}rem` | `${number}vh` | `${number}vw` | `${number}vmin` | `${number}vmax` | `${number}ex` | `${number}ch` | `${number}cm` | `${number}mm` | `${number}in` | `${number}pt` | `${number}pc`;
+export type Length = number | `${number}px` | `${number}%` | `${number}em` | `${number}rem` | `${number}vh` | `${number}vw` | `${number}vmin` | `${number}vmax` | `${number}ex` | `${number}ch` | `${number}cm` | `${number}mm` | `${number}in` | `${number}pt` | `${number}pc` | `calc(${string})`;
 export type LengthOrPercentage = Length | `${number}%`;
 export type LengthOrPercentageOrAuto = Length | `${number}%` | "auto";
 export type Rotate = `${number}deg` | `${number}grad` | `${number}rad` | `${number}turn`;
