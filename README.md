@@ -22,6 +22,7 @@ preact.render(
             .overflow("auto")
             .maxHeight("50vh")
             .border("1px solid hsl(0, 0%, 10%)")
+            .toString()
     }>   
     </div>
 )
@@ -32,7 +33,7 @@ preact.render(
 ## Appending (for conditional styles)
 ```jsx
 import { css } from "typesafecss";
-return <div class={css.hsl(0, 0, 50) + (this.props.bold && css.fontWeight("bold"))} />
+return <div class={css.hsl(0, 0, 50) + (this.props.bold && css.fontWeight("bold").toString())} />
 ```
 
 ## Precedence
@@ -42,51 +43,51 @@ s
 
 ```jsx
 import { css } from "typesafecss";
-return <div class={this.props.inputClassName + css.alignItems("center", "soft")} />
+return <div class={this.props.inputClassName + css.alignItems("center", "soft").toString()} />
 ```
 
 ## Hover
 ```jsx
 import { css } from "typesafecss";
-return <div class={css.background("hsl(0, 0%, 50%)", "hover")} />
+return <div class={css.background("hsl(0, 0%, 50%)", "hover").toString()} />
 ```
 
 ## Active
 ```jsx
 import { css } from "typesafecss";
-return <div class={css.background("hsl(0, 0%, 50%)", "active")} />
+return <div class={css.background("hsl(0, 0%, 50%)", "active").toString()} />
 ```
 
 ## Focus
 ```jsx
 import { css } from "typesafecss";
-return <div class={css.background("hsl(0, 0%, 50%)", "focus")} />
+return <div class={css.background("hsl(0, 0%, 50%)", "focus").toString()} />
 ```
 
 ## Important
 ```jsx
 import { css } from "typesafecss";
 // { background: hsl(0, 0%, 50%) !important; }
-return <div class={css.background("hsl(0, 0%, 50%)", "important")} />
+return <div class={css.background("hsl(0, 0%, 50%)", "important").toString()} />
 ```
 
 ## Soft can be added as a modifier to any values
 ```jsx
 import { css } from "typesafecss";
 // :focus { background: hsl(0, 0%, 50%); }
-return <div class={css.background("hsl(0, 0%, 50%)", "focus", "soft")} />
+return <div class={css.background("hsl(0, 0%, 50%)", "focus", "soft").toString()} />
 ```
 
 ## Multiple parameters will be combined
 ```jsx
 import { css } from "typesafecss";
 // $ELEMENT_ID$:hover:active:focus { background: hsl(0, 0%, 50%) !important; }
-return <div class={css.background("hsl(0, 0%, 50%)", "hover", "active", "focus", "important")} />
+return <div class={css.background("hsl(0, 0%, 50%)", "hover", "active", "focus", "important").toString()} />
 ```
 
 ## Calc
 Values such as "100%" are typesafe, but more complex values such as "calc(100% - 10px)" are not. To use these values, cast them to an example of the desired type (ex, a percentage or pixel value).
 ```jsx
 import { css } from "typesafecss";
-return <div class={css.width("calc(100% - 10px)" as "100%")} />
+return <div class={css.width("calc(100% - 10px)" as "100%").toString()} />
 ```
