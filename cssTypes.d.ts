@@ -87,7 +87,7 @@ export type StrictStyles = {
     visibility?: "visible" | "hidden" | "collapse";
     whiteSpace?: "normal" | "nowrap" | "pre" | "pre-wrap" | "pre-line";
     letterSpacing?: string | number; // Length values
-    // "1" results in 1x the font size, "1px" is 1px
+    // "1" results in 1X the font size, "1px" is 1px
     lineHeight?: Exclude<Length, number> | `${number}`;
     textShadow?: string; // e.g., "1px 1px 2px black"
     verticalAlign?: "baseline" | "sub" | "super" | "text-top" | "text-bottom" | "middle" | "top" | "bottom";

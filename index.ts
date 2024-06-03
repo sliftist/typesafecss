@@ -114,6 +114,14 @@ let callAliases = {
         if (horizontalValue !== undefined) return c.margin(`${value}px ${horizontalValue}px` as any);
         return c.margin(value);
     },
+    pad2: (c: CSSHelperTypeBase, value: number, verticalValue?: number): CSSHelperTypeBase => {
+        if (verticalValue !== undefined) return c.padding(`${verticalValue}px ${value}px` as any);
+        return c.padding(value);
+    },
+    margins2: (c: CSSHelperTypeBase, value: number, verticalValue?: number): CSSHelperTypeBase => {
+        if (verticalValue !== undefined) return c.margin(`${verticalValue}px ${value}px` as any);
+        return c.margin(value);
+    },
     padh: (c: CSSHelperTypeBase, value: number): CSSHelperTypeBase => c.paddingLeft(value).paddingRight(value),
     padv: (c: CSSHelperTypeBase, value: number): CSSHelperTypeBase => c.paddingTop(value).paddingBottom(value),
     hsl: (c: CSSHelperTypeBase, h: number, s: number, l: number): CSSHelperTypeBase => c.background(`hsl(${h}, ${s}%, ${l}%)`),
