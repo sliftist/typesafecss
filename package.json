@@ -1,7 +1,7 @@
 {
     "name": "typesafecss",
     "repository": "https://github.com/sliftist/typesafecss",
-    "version": "0.3.1",
+    "version": "0.3.2",
     "scripts": {
         "xbuild": "yarn typenode css.ts"
     },
