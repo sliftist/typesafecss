@@ -26,8 +26,8 @@ export type StrictStyles = {
     minHeight?: LengthOrPercentage; // Length values or percentages
     maxWidth?: LengthOrPercentage; // Length values or percentages
     maxHeight?: LengthOrPercentage; // Length values or percentages
-    margin?: LengthOrPercentageOrAuto; // Length values, percentages, or "auto"
-    padding?: LengthOrPercentage; // Length values or percentages
+    margin?: LengthOrPercentageOrAuto | `${LengthOrPercentage} ${LengthOrPercentage}`; // Length values, percentages, or "auto"
+    padding?: LengthOrPercentage | `${LengthOrPercentage} ${LengthOrPercentage}`; // Length values or percentages
     paddingTop?: LengthOrPercentage; // Length values or percentages
     paddingRight?: LengthOrPercentage; // Length values or percentages
     paddingBottom?: LengthOrPercentage; // Length values or percentages
