@@ -130,9 +130,12 @@ let callAliases = {
     padv: (c: CSSHelperTypeBase, value: number): CSSHelperTypeBase => c.paddingTop(value).paddingBottom(value),
     hsl: (c: CSSHelperTypeBase, h: number, s: number, l: number): CSSHelperTypeBase => c.background(`hsl(${h}, ${s}%, ${l}%)`),
     hsla: (c: CSSHelperTypeBase, h: number, s: number, l: number, a: number): CSSHelperTypeBase => c.background(`hsla(${h}, ${s}%, ${l}%, ${a})`),
-    bord: (c: CSSHelperTypeBase, value: number, color: string | { h: number; s: number; l: number }, style = "solid"): CSSHelperTypeBase => {
-        let colorStr = typeof color === "string" ? color : `hsl(${color.h}, ${color.s}%, ${color.l}%)`;
-        return c.border(`${value}px ${style} ${colorStr}`);
+    bord: (c: CSSHelperTypeBase, width: number, color: string | { h: number; s: number; l: number; a?: number; }, style = "solid"): CSSHelperTypeBase => {
+        let colorStr = typeof color === "string" ? color : `hsla(${color.h}, ${color.s}%, ${color.l}%, ${color.a ?? 1})`;
+        return c.border(`${width}px ${style} ${colorStr}`);
+    },
+    bord2: (c: CSSHelperTypeBase, h: number, s: number, l: number, width = 1, style = "solid"): CSSHelperTypeBase => {
+        return c.border(`${width}px ${style} hsla(${h}, ${s}%, ${l}%, 1)`);
     },
     hslcolor: (c: CSSHelperTypeBase, h: number, s: number, l: number): CSSHelperTypeBase => c.color(`hsl(${h}, ${s}%, ${l}%)`),
     colorhsl: (c: CSSHelperTypeBase, h: number, s: number, l: number): CSSHelperTypeBase => c.color(`hsl(${h}, ${s}%, ${l}%)`),
