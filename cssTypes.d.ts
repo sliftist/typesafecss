@@ -209,4 +209,6 @@ export type StrictStyles = {
     // top | center | bottom | left | right | "25% 75%"
     objectPosition?: string;
     outline?: string; // A shorthand property for outline-width, outline-style, and outline-color
+
+    aspectRatio?: `${number} / ${number}`;
 };

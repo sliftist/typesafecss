@@ -10,6 +10,7 @@ type Styles = {
     [key: string]: {
         value: string | number;
         order: number;
+        suffix?: string;
     }
 };
 
@@ -19,7 +20,7 @@ let addedCSS = new Set<string>();
 function getClassNames(styles: Styles): string[] {
     let result: string[] = [];
     let newCSSByOrder = new Map<number, string[]>();
-    for (let [key, { value, order }] of Object.entries(styles)) {
+    for (let [key, { value, order, suffix }] of Object.entries(styles)) {
         let prependSelector = key.split(":").slice(1).join(":");
         if (prependSelector) prependSelector = ":" + prependSelector;
         key = key.split(":")[0];
@@ -38,7 +39,8 @@ function getClassNames(styles: Styles): string[] {
         if (typeof value === "number" && !IS_NON_DIMENSIONAL.test(key.toLowerCase().replaceAll("-", ""))) {
             value = value + "px";
         }
-        let css = `.${className}${prependSelector} { ${key}: ${value}; }`;
+        
+        let css = `.${className}${prependSelector} { ${key}: ${value}${suffix || ""}; }`;
         if (!addedCSS.has(css)) {
             addedCSS.add(css);
             let newCSS = newCSSByOrder.get(order);
@@ -173,6 +175,7 @@ function cssHelper(key: string, styles: Styles) {
             }
             styles = { ...styles };
             let order = 1;
+            let suffix = "";
             if (argArray.includes("soft")) {
                 order = 0;
             }
@@ -186,12 +189,13 @@ function cssHelper(key: string, styles: Styles) {
                 key += ":focus";
             }
             if (argArray.includes("important")) {
-                argArray[0] += "!important";
+                suffix = " !important";
             }
             if (!(key in styles) || styles[key].order <= order || styles) {
                 styles[key] = {
                     value: argArray[0],
                     order,
+                    suffix,
                 };
             }
             return cssHelper(key, styles);
