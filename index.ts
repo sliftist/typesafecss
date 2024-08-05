@@ -45,7 +45,7 @@ function getClassNames(styles: Styles): string[] {
         let css = selector + contents;
         if (selector.includes(":hover")) {
             let hoverInnerSelector = selector.replace(":hover", "");
-            css = `.trigger-hover:hover ${hoverInnerSelector}${contents}`;
+            css += ` .trigger-hover:hover ${hoverInnerSelector}${contents}`;
         }
         if (!addedCSS.has(css)) {
             addedCSS.add(css);
