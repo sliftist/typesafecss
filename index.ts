@@ -40,7 +40,13 @@ function getClassNames(styles: Styles): string[] {
             value = value + "px";
         }
         
-        let css = `.${className}${prependSelector} { ${key}: ${value}${suffix || ""}; }`;
+        let selector = `.${className}${prependSelector}`;
+        let contents = ` { ${key}: ${value}${suffix || ""}; }`;
+        let css = selector + contents;
+        if (selector.includes(":hover")) {
+            let hoverInnerSelector = selector.replace(":hover", "");
+            css = `.trigger-hover:hover ${hoverInnerSelector}${contents}`;
+        }
         if (!addedCSS.has(css)) {
             addedCSS.add(css);
             let newCSS = newCSSByOrder.get(order);

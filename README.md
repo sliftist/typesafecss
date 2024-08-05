@@ -14,7 +14,7 @@ import { css } from "typesafecss";
 
 preact.render(
     document.getElementById("main"),
-    <div class={
+    <div className={
         css.pad(2).margin(2)
             .absolute.pos(0, 0).zIndex(1)
             .hsl(0, 0, 25)
@@ -22,7 +22,6 @@ preact.render(
             .overflow("auto")
             .maxHeight("50vh")
             .border("1px solid hsl(0, 0%, 10%)")
-            .toString()
     }>   
     </div>
 )
@@ -33,61 +32,72 @@ preact.render(
 ## Appending (for conditional styles)
 ```jsx
 import { css } from "typesafecss";
-return <div class={css.hsl(0, 0, 50) + (this.props.bold && css.fontWeight("bold").toString())} />
+return <div className={css.hsl(0, 0, 50) + (this.props.bold && css.fontWeight("bold"))} />
 ```
 
 ## Precedence
-The generated CSS is dynamically injected, following regular cascading CSS rules.
-s
 "soft" as a second parameter will inject a CSS rule with a lower precedence than the default rule. This allows generic components to have a default style that can be overridden by the parent component.
 
 ```jsx
 import { css } from "typesafecss";
-return <div class={this.props.inputClassName + css.alignItems("center", "soft").toString()} />
+return <div className={this.props.inputClassName + css.alignItems("center", "soft")} />
 ```
 
 ## Hover
 ```jsx
 import { css } from "typesafecss";
-return <div class={css.background("hsl(0, 0%, 50%)", "hover").toString()} />
+return <div className={css.background("hsl(0, 0%, 50%)", "hover")} />
 ```
 
 ## Active
 ```jsx
 import { css } from "typesafecss";
-return <div class={css.background("hsl(0, 0%, 50%)", "active").toString()} />
+return <div className={css.background("hsl(0, 0%, 50%)", "active")} />
 ```
 
 ## Focus
 ```jsx
 import { css } from "typesafecss";
-return <div class={css.background("hsl(0, 0%, 50%)", "focus").toString()} />
+return <div className={css.background("hsl(0, 0%, 50%)", "focus")} />
 ```
 
 ## Important
 ```jsx
 import { css } from "typesafecss";
 // { background: hsl(0, 0%, 50%) !important; }
-return <div class={css.background("hsl(0, 0%, 50%)", "important").toString()} />
+return <div className={css.background("hsl(0, 0%, 50%)", "important")} />
 ```
 
 ## Soft can be added as a modifier to any values
 ```jsx
 import { css } from "typesafecss";
 // :focus { background: hsl(0, 0%, 50%); }
-return <div class={css.background("hsl(0, 0%, 50%)", "focus", "soft").toString()} />
+return <div className={css.background("hsl(0, 0%, 50%)", "focus", "soft")} />
 ```
 
 ## Multiple parameters will be combined
 ```jsx
 import { css } from "typesafecss";
 // $ELEMENT_ID$:hover:active:focus { background: hsl(0, 0%, 50%) !important; }
-return <div class={css.background("hsl(0, 0%, 50%)", "hover", "active", "focus", "important").toString()} />
+return <div className={css.background("hsl(0, 0%, 50%)", "hover", "active", "focus", "important")} />
 ```
 
 ## Calc
 Values such as "100%" are typesafe, but more complex values such as "calc(100% - 10px)" are not. To use these values, cast them to an example of the desired type (ex, a percentage or pixel value).
 ```jsx
 import { css } from "typesafecss";
-return <div class={css.width("calc(100% - 10px)" as "100%").toString()} />
+return <div className={css.width("calc(100% - 10px)" as "100%")} />
+```
+
+
+## Explicit hover states
+All hover states may also be triggered by a parent class called "trigger-hover"
+```jsx
+import { css } from "typesafecss";
+return <div className={"trigger-hover"}>
+    text here
+    <div className={css.opacity(0.5).opacity(1, "hover")}>
+        more text here
+    </div>
+</div>
 ```

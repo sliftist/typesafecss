@@ -80,10 +80,10 @@ export type StrictStyles = {
     borderLeftWidth?: string | number; // Length values
     borderRightWidth?: string | number; // Length values
     borderTopWidth?: string | number; // Length values
-    borderRadiusTopLeft?: LengthOrPercentage; // Length values or percentages
-    borderRadiusTopRight?: LengthOrPercentage; // Length values or percentages
-    borderRadiusBottomLeft?: LengthOrPercentage; // Length values or percentages
-    borderRadiusBottomRight?: LengthOrPercentage; // Length values or percentages
+    borderTopRightRadius?: LengthOrPercentage;
+    borderBottomRightRadius?: LengthOrPercentage;
+    borderBottomLeftRadius?: LengthOrPercentage;
+    borderTopLeftRadius?: LengthOrPercentage;
     visibility?: "visible" | "hidden" | "collapse";
     whiteSpace?: "normal" | "nowrap" | "pre" | "pre-wrap" | "pre-line";
     letterSpacing?: string | number; // Length values
