@@ -17,7 +17,17 @@ type Styles = {
 // https://github.com/preactjs/preact/blob/main/src/constants.js#L15C1-L16C70
 const IS_NON_DIMENSIONAL = /acit|ex(?:s|g|n|p|$)|rph|grid|ows|mnc|ntw|ine[ch]|zoo|^ord|itera/i;
 let addedCSS = new Set<string>();
+let lastDoc: unknown;
 function getClassNames(styles: Styles): string[] {
+    // This check allows us to support serverside rendering. Any serverside rendering implementation
+    //  should change the document instance between renders, and so if the document changes, we need to
+    //  re-add our css.
+    //  (This is also true if the document were to change clientside, as this would mean our css was
+    //      removed from the document!)
+    if (lastDoc !== document) {
+        lastDoc = document;
+        addedCSS.clear();
+    }
     let result: string[] = [];
     let newCSSByOrder = new Map<number, string[]>();
     for (let [key, { value, order, suffix }] of Object.entries(styles)) {
@@ -39,7 +49,7 @@ function getClassNames(styles: Styles): string[] {
         if (typeof value === "number" && !IS_NON_DIMENSIONAL.test(key.toLowerCase().replaceAll("-", ""))) {
             value = value + "px";
         }
-        
+
         let selector = `.${className}${prependSelector}`;
         let contents = ` { ${key}: ${value}${suffix || ""}; }`;
         let css = selector + contents;
