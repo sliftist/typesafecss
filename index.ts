@@ -1,7 +1,8 @@
 // TODO: Support dynamically extending css to a version with custom aliases.
 
 export function isNode() {
-    return typeof document === "undefined";
+    // Use window, as document is sometimes available during server-side rendering
+    return typeof window === "undefined";
 }
 import type { LengthOrPercentage, StrictStyles } from "./cssTypes";
 module.allowclient = true;
