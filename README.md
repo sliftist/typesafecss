@@ -82,13 +82,6 @@ import { css } from "typesafecss";
 return <div className={css.background("hsl(0, 0%, 50%)", "hover", "active", "focus", "important")} />
 ```
 
-## Calc
-Values such as "100%" are typesafe, but more complex values such as "calc(100% - 10px)" are not. To use these values, cast them to an example of the desired type (ex, a percentage or pixel value).
-```jsx
-import { css } from "typesafecss";
-return <div className={css.width("calc(100% - 10px)" as "100%")} />
-```
-
 
 ## Explicit hover states
 All hover states may also be triggered by a parent class called "trigger-hover"
