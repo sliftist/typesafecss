@@ -1,13 +1,13 @@
 # Description
 A simple library for typesafe CSS.
 
-"All" (hopefully) built-in CSS fields are supported. A proxy is used, so any field will work at runtime, even if it raises a TypeScript error.
+"All" (hopefully) built-in CSS properties are supported. A proxy is used, so any property will work at runtime, even if it raises a TypeScript error.
 
 # Usage
 
 There are also some convenience aliases for common CSS patterns, such as "pad", "hbox", "vbox", and "wrap". Some aliases are parameterless, such as "absolute".
 
-Go to definition to see the underlying alias or CSS field.
+Go to definition to see the underlying alias or CSS property.
 
 ```jsx
 import { css } from "typesafecss";
