@@ -208,7 +208,7 @@ function cssHelper(key: string, styles: Styles) {
             if (argArray.includes("important")) {
                 suffix = " !important";
             }
-            if (!(key in styles) || styles[key].order <= order || styles) {
+            if (!(key in styles) || styles[key].order <= order) {
                 styles[key] = {
                     value: argArray[0],
                     order,
