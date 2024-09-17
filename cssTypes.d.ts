@@ -211,4 +211,6 @@ export type StrictStyles = {
     outline?: string; // A shorthand property for outline-width, outline-style, and outline-color
 
     aspectRatio?: `${number} / ${number}`;
+
+    zoom?: "normal" | "unset" | "initial" | number;
 };
