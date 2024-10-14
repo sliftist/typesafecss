@@ -5,7 +5,9 @@ export function isNode() {
     return typeof window === "undefined";
 }
 import type { LengthOrPercentage, StrictStyles } from "./cssTypes";
-module.allowclient = true;
+if (typeof module !== "undefined") {
+    module.allowclient = true;
+}
 
 type Styles = {
     [key: string]: {
