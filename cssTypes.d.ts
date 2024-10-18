@@ -20,8 +20,8 @@ export type StrictStyles = {
     right?: LengthOrPercentage; // Length values or percentages
     bottom?: LengthOrPercentage; // Length values or percentages
     left?: LengthOrPercentage; // Length values or percentages
-    width?: LengthOrPercentageOrAuto; // Length values, percentages, or "auto"
-    height?: LengthOrPercentageOrAuto; // Length values, percentages, or "auto"
+    width?: LengthOrPercentageOrAuto | "auto" | "fit-content"; // Length values, percentages, or "auto"
+    height?: LengthOrPercentageOrAuto | "auto" | "fit-content"; // Length values, percentages, or "auto"
     minWidth?: LengthOrPercentage; // Length values or percentages
     minHeight?: LengthOrPercentage; // Length values or percentages
     maxWidth?: LengthOrPercentage; // Length values or percentages
