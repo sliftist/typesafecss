@@ -69,6 +69,7 @@ export type StrictStyles = {
     borderLeft?: string; // Border shorthand property
     borderRight?: string; // Border shorthand property
     borderTop?: string; // Border shorthand property
+    borderColor?: string; // Color values
     borderBottomColor?: string; // Color values
     borderLeftColor?: string; // Color values
     borderRightColor?: string; // Color values
