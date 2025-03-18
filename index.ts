@@ -181,6 +181,9 @@ function cssHelper(key: string, styles: Styles) {
                 };
             }
             if (typeof key === "symbol") return undefined;
+            if (key === "getStyles") {
+                return styles;
+            }
             if (key in nonCallAliases) {
                 return nonCallAliases[key as "center"](cssHelper(key, styles));
             }
@@ -235,6 +238,8 @@ type CSSHelperType = (
         [key in keyof NonCallAliases]: CSSHelperType;
     } & {
         [key in keyof CallAliases]: CallAliases[key] extends (c: CSSHelperTypeBase, ...args: infer Args) => any ? (...args: Args) => CSSHelperType : never;
+    } & {
+        getStyles: () => Styles;
     }
 );
 
