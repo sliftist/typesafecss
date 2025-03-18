@@ -182,7 +182,7 @@ function cssHelper(key: string, styles: Styles) {
             }
             if (typeof key === "symbol") return undefined;
             if (key === "getStyles") {
-                return styles;
+                return () => styles;
             }
             if (key in nonCallAliases) {
                 return nonCallAliases[key as "center"](cssHelper(key, styles));
