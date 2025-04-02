@@ -150,7 +150,9 @@ let callAliases = {
     padh: (c: CSSHelperTypeBase, value: number): CSSHelperTypeBase => c.paddingLeft(value).paddingRight(value),
     padv: (c: CSSHelperTypeBase, value: number): CSSHelperTypeBase => c.paddingTop(value).paddingBottom(value),
     hsl: (c: CSSHelperTypeBase, h: number, s: number, l: number): CSSHelperTypeBase => c.background(`hsl(${h}, ${s}%, ${l}%)`),
+    hslhover: (c: CSSHelperTypeBase, h: number, s: number, l: number): CSSHelperTypeBase => c.background(`hsl(${h}, ${s}%, ${l}%)`).filter("brightness(1.1)", "hover"),
     hsla: (c: CSSHelperTypeBase, h: number, s: number, l: number, a: number): CSSHelperTypeBase => c.background(`hsla(${h}, ${s}%, ${l}%, ${a})`),
+    hslahover: (c: CSSHelperTypeBase, h: number, s: number, l: number, a: number): CSSHelperTypeBase => c.background(`hsla(${h}, ${s}%, ${l}%, ${a})`).filter("brightness(1.1)", "hover"),
     bord: (c: CSSHelperTypeBase, width: number, color: string | { h: number; s: number; l: number; a?: number; }, style = "solid"): CSSHelperTypeBase => {
         let colorStr = typeof color === "string" ? color : `hsla(${color.h}, ${color.s}%, ${color.l}%, ${color.a ?? 1})`;
         return c.border(`${width}px ${style} ${colorStr}`);
@@ -242,5 +244,7 @@ type CSSHelperType = (
         getStyles: () => Styles;
     }
 );
+
+export type CSSType = CSSHelperType;
 
 export const css = cssHelper("", {}) as CSSHelperType;
