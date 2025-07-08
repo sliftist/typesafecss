@@ -32,10 +32,10 @@ export type StrictStyles = {
     paddingRight?: LengthOrPercentage; // Length values or percentages
     paddingBottom?: LengthOrPercentage; // Length values or percentages
     paddingLeft?: LengthOrPercentage; // Length values or percentages
-    marginTop?: LengthOrPercentage; // Length values or percentages
-    marginRight?: LengthOrPercentage; // Length values or percentages
-    marginBottom?: LengthOrPercentage; // Length values or percentages
-    marginLeft?: LengthOrPercentage; // Length values or percentages
+    marginTop?: LengthOrPercentageOrAuto; // Length values or percentages
+    marginRight?: LengthOrPercentageOrAuto; // Length values or percentages
+    marginBottom?: LengthOrPercentageOrAuto; // Length values or percentages
+    marginLeft?: LengthOrPercentageOrAuto; // Length values or percentages
     backgroundColor?: string; // Color values
     color?: string; // Color values
     fontSize?: string | number; // Length values, percentages, or keyword sizes (e.g., "small", "medium", "large")
