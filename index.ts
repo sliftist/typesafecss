@@ -17,81 +17,130 @@ type Styles = {
     }
 };
 
+type MeasureBlock = {
+    <T>(code: () => T, name?: string): T;
+};
+
+function measureBlockDefault<T>(code: () => T, name?: string): T {
+    return code();
+}
+let measureBlock: MeasureBlock = measureBlockDefault;
+// We can profile our internal code, if you provide us the functino you want us to call when running code.
+export function setMeasureBlock(newMeasureBlock: MeasureBlock) {
+    measureBlock = newMeasureBlock;
+}
+
+
+type DelayFnc = {
+    (fnc: () => void): void;
+};
+function delayFncDefault(fnc: () => void) {
+    void Promise.resolve().finally(fnc);
+}
+let delayFnc: DelayFnc = delayFncDefault;
+
+// You can override how we delay style insertions (which we do to batch multiple, which makes our code 100X faster). This is useful if you need to know when all styles are added, so you can measure things, etc.
+export function setDelayFnc(newDelayFnc: DelayFnc) {
+    delayFnc = newDelayFnc;
+}
+
+
 // https://github.com/preactjs/preact/blob/main/src/constants.js#L15C1-L16C70
 const IS_NON_DIMENSIONAL = /acit|ex(?:s|g|n|p|$)|rph|grid|ows|mnc|ntw|ine[ch]|zoo|^ord|itera/i;
 let addedCSS = new Set<string>();
 let lastDoc: unknown;
 function getClassNames(styles: Styles): string[] {
-    // This check allows us to support serverside rendering. Any serverside rendering implementation
-    //  should change the document instance between renders, and so if the document changes, we need to
-    //  re-add our css.
-    //  (This is also true if the document were to change clientside, as this would mean our css was
-    //      removed from the document!)
-    if (lastDoc !== document) {
-        lastDoc = document;
-        addedCSS.clear();
-    }
-    let result: string[] = [];
-    let newCSSByOrder = new Map<number, string[]>();
-    for (let [key, { value, order, suffix }] of Object.entries(styles)) {
-        let prependSelector = key.split(":").slice(1).join(":");
-        if (prependSelector) prependSelector = ":" + prependSelector;
-        key = key.split(":")[0];
-        function sanitize(text: string) {
-            let sanitized = "";
-            for (let ch of text) {
-                // If it isn't a letter, number, or dash, replace it with the char code
-                if (!/[a-zA-Z0-9-]/.test(ch)) {
-                    ch = "-" + ch.charCodeAt(0).toString(16);
+    return measureBlock(() => {
+        // This check allows us to support serverside rendering. Any serverside rendering implementation
+        //  should change the document instance between renders, and so if the document changes, we need to
+        //  re-add our css.
+        //  (This is also true if the document were to change clientside, as this would mean our css was
+        //      removed from the document!)
+        if (lastDoc !== document) {
+            lastDoc = document;
+            addedCSS.clear();
+        }
+        let result: string[] = [];
+        let newCSSByOrder = new Map<number, string[]>();
+        measureBlock(function generateCSS() {
+            for (let [key, { value, order, suffix }] of Object.entries(styles)) {
+                let prependSelector = key.split(":").slice(1).join(":");
+                if (prependSelector) prependSelector = ":" + prependSelector;
+                key = key.split(":")[0];
+                function sanitize(text: string) {
+                    let sanitized = "";
+                    for (let ch of text) {
+                        // If it isn't a letter, number, or dash, replace it with the char code
+                        if (!/[a-zA-Z0-9-]/.test(ch)) {
+                            ch = "-" + ch.charCodeAt(0).toString(16);
+                        }
+                        sanitized += ch;
+                    }
+                    return sanitized;
                 }
-                sanitized += ch;
+                let className = `${key}-${prependSelector.replaceAll(":", "")}-${sanitize(String(value))}-${order}`;
+                if (typeof value === "number" && !IS_NON_DIMENSIONAL.test(key.toLowerCase().replaceAll("-", ""))) {
+                    value = value + "px";
+                }
+
+                let selector = `.${className}${prependSelector}`;
+                let contents = ` { ${key}: ${value}${suffix || ""}; }`;
+                let css = selector + contents;
+                if (selector.includes(":hover")) {
+                    let hoverInnerSelector = selector.replace(":hover", "");
+                    css += ` .trigger-hover:hover ${hoverInnerSelector}${contents}`;
+                }
+                if (!addedCSS.has(css)) {
+                    addedCSS.add(css);
+                    let newCSS = newCSSByOrder.get(order);
+                    if (!newCSS) {
+                        newCSS = [];
+                        newCSSByOrder.set(order, newCSS);
+                    }
+                    newCSS.push(css);
+                }
+                result.push(className);
             }
-            return sanitized;
-        }
-        let className = `${key}-${prependSelector.replaceAll(":", "")}-${sanitize(String(value))}-${order}`;
-        if (typeof value === "number" && !IS_NON_DIMENSIONAL.test(key.toLowerCase().replaceAll("-", ""))) {
-            value = value + "px";
+        }, "typesafecss|generateRawCSS");
+
+        for (let [order, newCSS] of newCSSByOrder) {
+            let orderMarker = document.querySelector(`style[data-order="${order}"]`);
+            if (!orderMarker) {
+                orderMarker = document.createElement("style");
+                orderMarker.setAttribute("data-order", order.toString());
+                let allOrderMarkers = Array.from(document.querySelectorAll(`style[data-order]`));
+                let afterMarker = allOrderMarkers.find(a => +(a.getAttribute("data-order") as any) > order);
+                if (afterMarker) {
+                    afterMarker.before(orderMarker);
+                } else {
+                    document.head.append(orderMarker);
+                }
+            }
+
+            if (!pendingCSSPerOrderMarker) {
+                pendingCSSPerOrderMarker = new Map();
+                delayFnc(() => {
+                    measureBlock(function addCSS() {
+                        if (!pendingCSSPerOrderMarker) return;
+                        for (let [orderMarker, pendingCSS] of pendingCSSPerOrderMarker.entries()) {
+                            let style = document.createElement("style");
+                            style.innerHTML = pendingCSS;
+                            orderMarker.after(style);
+                        }
+                        pendingCSSPerOrderMarker = undefined;
+                    }, "typesafecss|insertStyleTag");
+                });
+            }
+            let prevStr = pendingCSSPerOrderMarker.get(orderMarker) || "";
+            pendingCSSPerOrderMarker.set(orderMarker, prevStr + "\n" + newCSS.join("\n"));
         }
 
-        let selector = `.${className}${prependSelector}`;
-        let contents = ` { ${key}: ${value}${suffix || ""}; }`;
-        let css = selector + contents;
-        if (selector.includes(":hover")) {
-            let hoverInnerSelector = selector.replace(":hover", "");
-            css += ` .trigger-hover:hover ${hoverInnerSelector}${contents}`;
-        }
-        if (!addedCSS.has(css)) {
-            addedCSS.add(css);
-            let newCSS = newCSSByOrder.get(order);
-            if (!newCSS) {
-                newCSS = [];
-                newCSSByOrder.set(order, newCSS);
-            }
-            newCSS.push(css);
-        }
-        result.push(className);
-    }
-    for (let [order, newCSS] of newCSSByOrder) {
-        let orderMarker = document.querySelector(`style[data-order="${order}"]`);
-        if (!orderMarker) {
-            orderMarker = document.createElement("style");
-            orderMarker.setAttribute("data-order", order.toString());
-            let allOrderMarkers = Array.from(document.querySelectorAll(`style[data-order]`));
-            let afterMarker = allOrderMarkers.find(a => +(a.getAttribute("data-order") as any) > order);
-            if (afterMarker) {
-                afterMarker.before(orderMarker);
-            } else {
-                document.head.append(orderMarker);
-            }
-        }
-
-        let style = document.createElement("style");
-        style.innerHTML = newCSS.join("\n");
-        orderMarker.after(style);
-    }
-
-    return result;
+        return result;
+    }, "typesafecss|getClassNames");
 }
+
+let pendingCSSPerOrderMarker: Map<Element, string> | undefined;
+
 
 let nonCallAliases = {
     center: (c: CSSHelperTypeBase) => c.display("flex").justifyContent("center").alignItems("center"),
