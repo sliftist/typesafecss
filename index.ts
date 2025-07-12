@@ -51,13 +51,15 @@ let addedCSS = new Set<string>();
 let lastDoc: unknown;
 function getClassNames(styles: Styles): string[] {
     return measureBlock(() => {
+        let document = globalThis.document;
+        if (!document) return [];
         // This check allows us to support serverside rendering. Any serverside rendering implementation
         //  should change the document instance between renders, and so if the document changes, we need to
         //  re-add our css.
         //  (This is also true if the document were to change clientside, as this would mean our css was
         //      removed from the document!)
-        if (lastDoc !== globalThis.document) {
-            lastDoc = globalThis.document;
+        if (lastDoc !== document) {
+            lastDoc = document;
             addedCSS.clear();
         }
         let result: string[] = [];
