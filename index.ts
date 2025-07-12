@@ -90,8 +90,9 @@ function getClassNames(styles: Styles): string[] {
                     let hoverInnerSelector = selector.replace(":hover", "");
                     css += ` .trigger-hover:hover ${hoverInnerSelector}${contents}`;
                 }
-                if (!addedCSS.has(css)) {
-                    addedCSS.add(css);
+                let hash = css + "-" + order;
+                if (!addedCSS.has(hash)) {
+                    addedCSS.add(hash);
                     let newCSS = newCSSByOrder.get(order);
                     if (!newCSS) {
                         newCSS = [];
