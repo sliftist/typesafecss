@@ -177,10 +177,11 @@ let callAliases = {
 function cssHelper(key: string, styles: Styles) {
     return new Proxy(() => { }, {
         get(target, key: string | symbol): any {
-            if (key === Symbol.toPrimitive) {
-                return () => {
-                    return " " + getClassNames(styles).join(" ") + " ";
-                };
+            function toString() {
+                return " " + getClassNames(styles).join(" ") + " ";
+            }
+            if (key === Symbol.toPrimitive || key === "toString") {
+                return toString;
             }
             if (typeof key === "symbol") return undefined;
             if (key === "getStyles") {
