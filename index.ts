@@ -56,8 +56,8 @@ function getClassNames(styles: Styles): string[] {
         //  re-add our css.
         //  (This is also true if the document were to change clientside, as this would mean our css was
         //      removed from the document!)
-        if (lastDoc !== document) {
-            lastDoc = document;
+        if (lastDoc !== globalThis.document) {
+            lastDoc = globalThis.document;
             addedCSS.clear();
         }
         let result: string[] = [];
