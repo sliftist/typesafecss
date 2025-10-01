@@ -159,6 +159,7 @@ let nonCallAliases = {
     fillWidth: (c: CSSHelperTypeBase) => c.width("100%"),
     fillHeight: (c: CSSHelperTypeBase) => c.height("100%"),
     shrink: (c: CSSHelperTypeBase) => c.flexShrink(100000000000),
+    flexFillWidth: (c: CSSHelperTypeBase) => c.flexGrow(1).minWidth(0).flexShrink(1000000000),
     flexShrink0: (c: CSSHelperTypeBase) => c.flexShrink(0),
     flexExpand: (c: CSSHelperTypeBase) => c.width(0).minWidth(0).flexGrow(1),
     vbox0: (c: CSSHelperTypeBase) => c.display("flex").flexDirection("column").alignItems("start", "soft"),
