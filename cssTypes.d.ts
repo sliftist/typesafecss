@@ -86,6 +86,7 @@ export type StrictStyles = {
     borderBottomRightRadius?: LengthOrPercentage;
     borderBottomLeftRadius?: LengthOrPercentage;
     borderTopLeftRadius?: LengthOrPercentage;
+    borderStyle?: "none" | "hidden" | "dotted" | "dashed" | "solid" | "double" | "groove" | "ridge" | "inset" | "outset";
     visibility?: "visible" | "hidden" | "collapse";
     whiteSpace?: "normal" | "nowrap" | "pre" | "pre-wrap" | "pre-line";
     letterSpacing?: string | number; // Length values
