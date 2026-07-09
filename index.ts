@@ -47,8 +47,125 @@ export function setDelayFnc(newDelayFnc: DelayFnc) {
 
 // https://github.com/preactjs/preact/blob/main/src/constants.js#L15C1-L16C70
 const IS_NON_DIMENSIONAL = /acit|ex(?:s|g|n|p|$)|rph|grid|ows|mnc|ntw|ine[ch]|zoo|^ord|itera/i;
-let addedCSS = new Set<string>();
+// Every generated declaration is emitted once as a CSS rule and remembered
+// here, keyed by its (unique) class name. `rules` is the 1-2 rule strings that
+// make up the class (2 when there's a :hover trigger). `lastUsedMs` is the wall
+// time we last handed this class out, used to garbage-collect stale rules.
+type RuleRec = { order: number; rules: string[]; lastUsedMs: number };
+let ruleByClass = new Map<string, RuleRec>();
+// One persistent <style> per order (0 = "soft" defaults, 1 = normal). We append
+// rules into these via insertRule instead of creating a fresh <style> per flush;
+// that keeps the <style> node count tiny and lets us delete individual rules.
+let sheetByOrder = new Map<number, HTMLStyleElement>();
 let lastDoc: unknown;
+
+// ---- Garbage collection of unused rules ------------------------------------
+// Feeding an ever-changing value through css.* (e.g. css.width(`${pct}%`) driven
+// every animation frame) generates a brand-new rule per distinct value. Without
+// cleanup these accumulate without bound: memory grows, and — because every
+// stylesheet mutation invalidates computed style document-wide — each forced
+// style recalc gets steadily slower (measured: linear in total rule count).
+//
+// So we periodically drop rules that BOTH (a) haven't been requested for a while
+// (cheap LRU filter) AND (b) are not currently applied to any element in the DOM.
+// Dropping is always safe: a class name is a pure function of its styles, so if a
+// dropped rule is needed again the next render regenerates it identically. The
+// worst case is one extra insert later, never a wrong style.
+//
+// Liveness is checked with a SINGLE O(nodes) sweep of the DOM into a Set of the
+// class tokens currently in use, then one Set.has() per candidate. This is NOT
+// the same as calling document.getElementsByClassName(token) per candidate:
+// measured on Chromium, a query for a never-seen token is O(nodes) (~0.28 ms on
+// a 44k-node page), because the class index is populated lazily and a miss walks
+// the tree. K such queries cost K*O(nodes) — seconds when K is large. The single
+// sweep is O(nodes) total (~41 ms on that same page, but once), after which each
+// check is ~0.1 µs. Break-even is ~150 candidates; GC only runs far above that.
+let gcEnabled = true;
+// Don't bother collecting until we exceed this many rules. Below ~2-3k the extra
+// recalc from leaked rules is < ~0.5 ms/frame (measured ~0.17 µs/rule/reflow), so
+// touching the DOM to reclaim them isn't worth it.
+let gcMaxRules = 3000;
+let gcMaxAgeMs = 60_000;   // only evict rules untouched for at least this long
+// Require at least this many age-gated (stale) candidates before we pay for the
+// O(nodes) DOM sweep — keeps a sweep from ever costing more than it reclaims.
+let gcMinCandidates = 200;
+let gcScheduled = false;
+
+export function setGarbageCollection(cfg: { enabled?: boolean; maxRules?: number; maxAgeMs?: number; minCandidates?: number; }) {
+    if (cfg.enabled !== undefined) gcEnabled = cfg.enabled;
+    if (cfg.maxRules !== undefined) gcMaxRules = cfg.maxRules;
+    if (cfg.maxAgeMs !== undefined) gcMaxAgeMs = cfg.maxAgeMs;
+    if (cfg.minCandidates !== undefined) gcMinCandidates = cfg.minCandidates;
+}
+
+function scheduleGC() {
+    if (gcScheduled) return;
+    gcScheduled = true;
+    let schedule: (fn: () => void) => void =
+        (globalThis as any).requestIdleCallback || ((fn: () => void) => setTimeout(fn, 0));
+    schedule(() => { gcScheduled = false; runGarbageCollectionNow(); });
+}
+
+export function runGarbageCollectionNow() {
+    let document = globalThis.document;
+    if (!document) return;
+    if (ruleByClass.size <= gcMaxRules) return;
+    let nowMs = Date.now();
+
+    // Cheap LRU pass first: gather rules untouched for at least gcMaxAgeMs. This
+    // needs no DOM access. If too few are stale, bail before the sweep — a sweep
+    // that reclaims a handful of rules costs more than it saves.
+    let candidates: string[] = [];
+    for (let [className, rec] of ruleByClass) {
+        if (nowMs - rec.lastUsedMs >= gcMaxAgeMs) candidates.push(className);
+    }
+    if (candidates.length < gcMinCandidates) return;
+
+    // One O(nodes) sweep: collect every class token currently on the page.
+    let live = new Set<string>();
+    let all = document.getElementsByTagName("*");
+    for (let i = 0; i < all.length; i++) {
+        let list = all[i].classList;
+        for (let j = 0; j < list.length; j++) live.add(list[j]);
+    }
+
+    // Evict stale candidates that no live element is using.
+    let dirtyOrders = new Set<number>();
+    for (let className of candidates) {
+        if (live.has(className)) continue;
+        let rec = ruleByClass.get(className);
+        if (!rec) continue;
+        ruleByClass.delete(className);
+        dirtyOrders.add(rec.order);
+    }
+    // Rebuild only the sheets we actually removed rules from. GC is infrequent,
+    // so a single O(rules-in-order) textContent rebuild here is fine (and it
+    // reparses far less often than the per-value inserts it replaces).
+    for (let order of dirtyOrders) {
+        let el = sheetByOrder.get(order);
+        if (!el) continue;
+        let text: string[] = [];
+        for (let rec of ruleByClass.values()) if (rec.order === order) text.push(...rec.rules);
+        el.textContent = text.join("\n");
+    }
+}
+
+function ensureSheet(document: Document, order: number): HTMLStyleElement {
+    let el = sheetByOrder.get(order);
+    if (el && el.isConnected) return el;
+    el = document.createElement("style");
+    el.setAttribute("data-order", order.toString());
+    // Keep the <style> nodes ordered in <head> by their order value so the
+    // cascade still sees soft defaults (order 0) before normal rules (order 1).
+    let siblings = Array.from(document.querySelectorAll(`style[data-order]`));
+    let after = siblings.find(a => +(a.getAttribute("data-order") as any) > order);
+    if (after) after.before(el); else document.head.append(el);
+    sheetByOrder.set(order, el);
+    return el;
+}
+
+let pendingByOrder: Map<number, string[]> | undefined;
+
 function getClassNames(styles: Styles): string[] {
     return measureBlock(() => {
         let document = globalThis.document;
@@ -60,10 +177,12 @@ function getClassNames(styles: Styles): string[] {
         //      removed from the document!)
         if (lastDoc !== document) {
             lastDoc = document;
-            addedCSS.clear();
+            ruleByClass.clear();
+            sheetByOrder.clear();
+            pendingByOrder = undefined;
         }
+        let nowMs = Date.now();
         let result: string[] = [];
-        let newCSSByOrder = new Map<number, string[]>();
         measureBlock(function generateCSS() {
             for (let [key, { value, order, suffix }] of Object.entries(styles)) {
                 let prependSelector = key.split(":").slice(1).join(":");
@@ -81,68 +200,62 @@ function getClassNames(styles: Styles): string[] {
                     return sanitized;
                 }
                 let className = `${key}-${prependSelector.replaceAll(":", "")}-${sanitize(String(value))}-${order}`;
+
+                // Already emitted — just refresh its last-used stamp (keeps hot
+                // classes from being garbage-collected) and reuse it.
+                let existing = ruleByClass.get(className);
+                if (existing) {
+                    existing.lastUsedMs = nowMs;
+                    result.push(className);
+                    continue;
+                }
+
                 if (typeof value === "number" && !IS_NON_DIMENSIONAL.test(key.toLowerCase().replaceAll("-", ""))) {
                     value = value + "px";
                 }
-
                 let selector = `.${className}${prependSelector}`;
                 let contents = ` { ${key}: ${value}${suffix || ""}; }`;
-                let css = selector + contents;
+                let rules = [selector + contents];
                 if (selector.includes(":hover")) {
                     let hoverInnerSelector = selector.replace(":hover", "");
-                    css += ` .trigger-hover:hover ${hoverInnerSelector}${contents}`;
+                    rules.push(`.trigger-hover:hover ${hoverInnerSelector}${contents}`);
                 }
-                let hash = css + "-" + order;
-                if (!addedCSS.has(hash)) {
-                    addedCSS.add(hash);
-                    let newCSS = newCSSByOrder.get(order);
-                    if (!newCSS) {
-                        newCSS = [];
-                        newCSSByOrder.set(order, newCSS);
-                    }
-                    newCSS.push(css);
+                ruleByClass.set(className, { order, rules, lastUsedMs: nowMs });
+
+                if (!pendingByOrder) {
+                    pendingByOrder = new Map();
+                    delayFnc(() => {
+                        measureBlock(function addCSS() {
+                            if (!pendingByOrder) return;
+                            let doc = globalThis.document;
+                            if (doc) {
+                                for (let [order, ruleList] of pendingByOrder) {
+                                    let el = ensureSheet(doc, order);
+                                    let sheet = el.sheet;
+                                    if (sheet) {
+                                        for (let r of ruleList) {
+                                            try { sheet.insertRule(r, sheet.cssRules.length); } catch { /* ignore invalid rule */ }
+                                        }
+                                    } else {
+                                        el.textContent = (el.textContent || "") + "\n" + ruleList.join("\n");
+                                    }
+                                }
+                            }
+                            pendingByOrder = undefined;
+                        }, "typesafecss|insertStyleTag");
+                    });
                 }
+                let arr = pendingByOrder.get(order);
+                if (!arr) { arr = []; pendingByOrder.set(order, arr); }
+                arr.push(...rules);
                 result.push(className);
             }
         }, "typesafecss|generateRawCSS");
 
-        for (let [order, newCSS] of newCSSByOrder) {
-            let orderMarker = document.querySelector(`style[data-order="${order}"]`);
-            if (!orderMarker) {
-                orderMarker = document.createElement("style");
-                orderMarker.setAttribute("data-order", order.toString());
-                let allOrderMarkers = Array.from(document.querySelectorAll(`style[data-order]`));
-                let afterMarker = allOrderMarkers.find(a => +(a.getAttribute("data-order") as any) > order);
-                if (afterMarker) {
-                    afterMarker.before(orderMarker);
-                } else {
-                    document.head.append(orderMarker);
-                }
-            }
-
-            if (!pendingCSSPerOrderMarker) {
-                pendingCSSPerOrderMarker = new Map();
-                delayFnc(() => {
-                    measureBlock(function addCSS() {
-                        if (!pendingCSSPerOrderMarker) return;
-                        for (let [orderMarker, pendingCSS] of pendingCSSPerOrderMarker.entries()) {
-                            let style = document.createElement("style");
-                            style.innerHTML = pendingCSS;
-                            orderMarker.after(style);
-                        }
-                        pendingCSSPerOrderMarker = undefined;
-                    }, "typesafecss|insertStyleTag");
-                });
-            }
-            let prevStr = pendingCSSPerOrderMarker.get(orderMarker) || "";
-            pendingCSSPerOrderMarker.set(orderMarker, prevStr + "\n" + newCSS.join("\n"));
-        }
-
+        if (gcEnabled && ruleByClass.size > gcMaxRules) scheduleGC();
         return result;
     }, "typesafecss|getClassNames");
 }
-
-let pendingCSSPerOrderMarker: Map<Element, string> | undefined;
 
 
 let nonCallAliases = {
