@@ -101,9 +101,11 @@ export function setGarbageCollection(cfg: { enabled?: boolean; maxRules?: number
 function scheduleGC() {
     if (gcScheduled) return;
     gcScheduled = true;
-    let schedule: (fn: () => void) => void =
-        (globalThis as any).requestIdleCallback || ((fn: () => void) => setTimeout(fn, 0));
-    schedule(() => { gcScheduled = false; runGarbageCollectionNow(); });
+    let schedule: (fn: () => void, timeout: number) => void = (
+        (globalThis as any).requestIdleCallback
+        || ((fn: () => void, timeout: number) => setTimeout(fn, timeout))
+    );
+    schedule(() => { gcScheduled = false; runGarbageCollectionNow(); }, 15000);
 }
 
 export function runGarbageCollectionNow() {

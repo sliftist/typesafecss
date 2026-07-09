@@ -15,6 +15,7 @@ export type StrictStyles = {
     flexBasis?: string | number; // Generally a length value (e.g., "0%", "50px", "auto")
     order?: number;
     alignSelf?: "auto" | "flex-start" | "flex-end" | "center" | "baseline" | "stretch" | "start" | "end";
+    justifySelf?: "start" | "end" | "center" | "stretch" | "self-start" | "self-end" | "flex-start" | "flex-end" | "baseline";
     position?: "static" | "relative" | "fixed" | "absolute" | "sticky";
     top?: LengthOrPercentage; // Length values or percentages
     right?: LengthOrPercentage; // Length values or percentages
@@ -54,6 +55,7 @@ export type StrictStyles = {
     overflowX?: "visible" | "hidden" | "scroll" | "auto" | "clip";
     overflowY?: "visible" | "hidden" | "scroll" | "auto" | "clip";
     overflowWrap?: "normal" | "break-word";
+    overflowAnchor?: "auto" | "none" | "x" | "y" | "both";
     cursor?: "auto" | "default" | "none" | "context-menu" | "help" | "pointer" | "progress" | "wait" | "cell" | "crosshair" | "text" | "vertical-text" | "alias" | "copy" | "move" | "no-drop" | "not-allowed" | "grab" | "grabbing" | "all-scroll" | "col-resize" | "row-resize" | "n-resize" | "e-resize" | "s-resize" | "w-resize" | "ne-resize" | "nw-resize" | "se-resize" | "sw-resize" | "ew-resize" | "ns-resize" | "nesw-resize" | "nwse-resize" | "zoom-in" | "zoom-out";
     boxSizing?: "content-box" | "border-box";
     boxShadow?: string; // e.g., "10px 5px 5px black"
@@ -112,6 +114,7 @@ export type StrictStyles = {
     clipPath?: string; // e.g., "circle(50%)", "url(#myClip)"
     filter?: string; // e.g., "blur(5px)", "brightness(0.4)"
     backdropFilter?: string; // e.g., "blur(5px)", "brightness(0.4)"
+    maskImage?: string; // e.g., "radial-gradient(ellipse at center, rgba(0,0,0,1) 70%)"
     gridTemplateColumns?: string; // e.g., "auto 1fr auto", "repeat(3, 1fr)"
     gridTemplateRows?: string; // e.g., "auto 1fr auto", "repeat(3, 1fr)"
     gridColumnGap?: string | number; // Length values
