@@ -53,6 +53,11 @@ const IS_NON_DIMENSIONAL = /acit|ex(?:s|g|n|p|$)|rph|grid|ows|mnc|ntw|ine[ch]|zo
 // time we last handed this class out, used to garbage-collect stale rules.
 type RuleRec = { order: number; rules: string[]; lastUsedMs: number };
 let ruleByClass = new Map<string, RuleRec>();
+// Rules the GC has dropped from the stylesheet but still remembers, keyed by
+// class name. Dropping a rule must never mean a permanently-lost style: if the
+// class is requested again (a new css.* call) or reappears in the DOM, we
+// restore the exact remembered rule instead of silently rendering unstyled.
+let removedRules = new Map<string, RuleRec>();
 // One persistent <style> per order (0 = "soft" defaults, 1 = normal). We append
 // rules into these via insertRule instead of creating a fresh <style> per flush;
 // that keeps the <style> node count tiny and lets us delete individual rules.
@@ -89,39 +94,86 @@ let gcMaxAgeMs = 60_000;   // only evict rules untouched for at least this long
 // Require at least this many age-gated (stale) candidates before we pay for the
 // O(nodes) DOM sweep — keeps a sweep from ever costing more than it reclaims.
 let gcMinCandidates = 200;
-let gcScheduled = false;
+// The GC runs on a fixed cadence (not only when a css.* call happens) so that
+// removed rules which reappear in the DOM get restored even while the page is
+// idle. This same value throttles any manual runGarbageCollectionNow() call, so
+// the GC runs at most once per this window no matter who asks for it.
+let gcIntervalMs = 15_000;
+// Once the GC has dropped more than this many rules over the lifetime of the
+// page, every subsequent GC that evicts rules warns (with examples), because at
+// that volume the app is almost certainly feeding ever-changing values through
+// css.* — see warnRulesEvicted for why that's expensive and what to do instead.
+let gcEvictWarnLifetimeThreshold = 1000;
+// Show at most this many example class names in either GC warning.
+let gcWarnExamplesMax = 5;
+// At most one "rules had to be re-added" warning per this window.
+let gcRestoreWarnThrottleMs = 15_000;
+let gcIntervalHandle: ReturnType<typeof setInterval> | undefined;
+// Wall-clock of the last GC run (interval- or manual-triggered); gates the
+// manual entry point so it can't run the sweep more than once per gcIntervalMs.
+let lastGcRunMs = 0;
+let lastGcRestoreWarnMs = 0;
+// Lifetime count of rules the GC has evicted, across all runs.
+let gcEvictedLifetime = 0;
 
-export function setGarbageCollection(cfg: { enabled?: boolean; maxRules?: number; maxAgeMs?: number; minCandidates?: number; }) {
+export function setGarbageCollection(cfg: { enabled?: boolean; maxRules?: number; maxAgeMs?: number; minCandidates?: number; intervalMs?: number; }) {
     if (cfg.enabled !== undefined) gcEnabled = cfg.enabled;
     if (cfg.maxRules !== undefined) gcMaxRules = cfg.maxRules;
     if (cfg.maxAgeMs !== undefined) gcMaxAgeMs = cfg.maxAgeMs;
     if (cfg.minCandidates !== undefined) gcMinCandidates = cfg.minCandidates;
+    if (cfg.intervalMs !== undefined) {
+        gcIntervalMs = cfg.intervalMs;
+        // Re-arm so a new cadence takes effect immediately.
+        if (gcIntervalHandle !== undefined) {
+            clearInterval(gcIntervalHandle);
+            gcIntervalHandle = undefined;
+            ensureGCInterval();
+        }
+    }
 }
 
-function scheduleGC() {
-    if (gcScheduled) return;
-    gcScheduled = true;
-    let schedule: (fn: () => void, timeout: number) => void = (
-        (globalThis as any).requestIdleCallback
-        || ((fn: () => void, timeout: number) => setTimeout(fn, timeout))
-    );
-    schedule(() => { gcScheduled = false; runGarbageCollectionNow(); }, 15000);
+// Establish the recurring GC once, lazily (the first time we generate CSS in a
+// real document). The interval is what guarantees removed rules get restored
+// even when no new css.* calls are arriving.
+function ensureGCInterval() {
+    if (gcIntervalHandle !== undefined) return;
+    if (!gcEnabled) return;
+    if (!globalThis.document) return;
+    if (typeof setInterval !== "function") return;
+    gcIntervalHandle = setInterval(() => gcSweep(), gcIntervalMs);
+    // Never let the GC timer hold a Node process open (matters for SSR).
+    let handle = gcIntervalHandle as unknown as { unref?: () => void };
+    if (handle && typeof handle.unref === "function") handle.unref();
 }
 
+// Manual entry point. Throttled to at most once per gcIntervalMs (shared with
+// the recurring interval) so callers can't force the O(nodes) sweep to run more
+// often than the automatic cadence.
 export function runGarbageCollectionNow() {
+    if (Date.now() - lastGcRunMs < gcIntervalMs) return;
+    gcSweep();
+}
+
+function gcSweep() {
     let document = globalThis.document;
     if (!document) return;
-    if (ruleByClass.size <= gcMaxRules) return;
+    if (!gcEnabled) return;
     let nowMs = Date.now();
+    lastGcRunMs = nowMs;
 
-    // Cheap LRU pass first: gather rules untouched for at least gcMaxAgeMs. This
-    // needs no DOM access. If too few are stale, bail before the sweep — a sweep
-    // that reclaims a handful of rules costs more than it saves.
+    // Cheap LRU pass first: gather active rules untouched for at least
+    // gcMaxAgeMs, but only once we're over the rule budget. Needs no DOM access.
     let candidates: string[] = [];
-    for (let [className, rec] of ruleByClass) {
-        if (nowMs - rec.lastUsedMs >= gcMaxAgeMs) candidates.push(className);
+    if (ruleByClass.size > gcMaxRules) {
+        for (let [className, rec] of ruleByClass) {
+            if (nowMs - rec.lastUsedMs >= gcMaxAgeMs) candidates.push(className);
+        }
     }
-    if (candidates.length < gcMinCandidates) return;
+    let willEvict = candidates.length >= gcMinCandidates;
+    // Pay for the DOM sweep if we have enough eviction candidates OR if we're
+    // already tracking removed rules that might have reappeared in the DOM. If
+    // neither, there's nothing a sweep could accomplish.
+    if (!willEvict && removedRules.size === 0) return;
 
     // One O(nodes) sweep: collect every class token currently on the page.
     let live = new Set<string>();
@@ -131,18 +183,39 @@ export function runGarbageCollectionNow() {
         for (let j = 0; j < list.length; j++) live.add(list[j]);
     }
 
-    // Evict stale candidates that no live element is using.
     let dirtyOrders = new Set<number>();
-    for (let className of candidates) {
-        if (live.has(className)) continue;
-        let rec = ruleByClass.get(className);
-        if (!rec) continue;
-        ruleByClass.delete(className);
-        dirtyOrders.add(rec.order);
+
+    // Evict stale candidates that no live element is using. We move them into
+    // removedRules (still remembered) rather than forgetting them entirely, so a
+    // later reappearance can be restored.
+    let evicted: string[] = [];
+    if (willEvict) {
+        for (let className of candidates) {
+            if (live.has(className)) continue;
+            let rec = ruleByClass.get(className);
+            if (!rec) continue;
+            ruleByClass.delete(className);
+            removedRules.set(className, rec);
+            dirtyOrders.add(rec.order);
+            evicted.push(className);
+        }
     }
-    // Rebuild only the sheets we actually removed rules from. GC is infrequent,
-    // so a single O(rules-in-order) textContent rebuild here is fine (and it
-    // reparses far less often than the per-value inserts it replaces).
+
+    // Restore any previously-removed rule that is applied to an element again.
+    // This is the safety net for "what if a rule starts being used later on?".
+    let restored: string[] = [];
+    for (let [className, rec] of removedRules) {
+        if (!live.has(className)) continue;
+        removedRules.delete(className);
+        rec.lastUsedMs = nowMs;
+        ruleByClass.set(className, rec);
+        dirtyOrders.add(rec.order);
+        restored.push(className);
+    }
+
+    // Rebuild only the sheets we changed. GC is infrequent, so a single
+    // O(rules-in-order) textContent rebuild here is fine; restored rules are
+    // already back in ruleByClass, so they reappear in the rebuilt text.
     for (let order of dirtyOrders) {
         let el = sheetByOrder.get(order);
         if (!el) continue;
@@ -150,6 +223,40 @@ export function runGarbageCollectionNow() {
         for (let rec of ruleByClass.values()) if (rec.order === order) text.push(...rec.rules);
         el.textContent = text.join("\n");
     }
+
+    gcEvictedLifetime += evicted.length;
+    if (evicted.length && gcEvictedLifetime > gcEvictWarnLifetimeThreshold) warnRulesEvicted(evicted);
+    if (restored.length) warnRulesRestored(restored);
+}
+
+// Once we've churned through a lot of rules, the app is almost certainly feeding
+// ever-changing values through css.* (e.g. `css.width(\`${pct}%\`)` every frame).
+// Each distinct value mints a brand-new class + rule, and every stylesheet
+// mutation invalidates computed style document-wide, so style recalc gets
+// steadily slower — a surprisingly high, easy-to-miss overhead. Inline styles
+// (element.style.width) have none of this cost: they don't touch the shared
+// stylesheet. So for values that change a lot, prefer an inline style, or move
+// the fixed part to a real <style>/class and only vary what must vary.
+function warnRulesEvicted(classNames: string[]) {
+    let examples = classNames.slice(0, gcWarnExamplesMax).join(", ");
+    console.warn(
+        `typesafecss: garbage-collected ${classNames.length} unused CSS rule(s) (${gcEvictedLifetime} total so far), e.g. ${examples}. ` +
+        `This many collected rules usually means ever-changing values are being fed through css.*, which mints a new class+rule per distinct value and makes every style recalc slower. ` +
+        `For values that change frequently, use an inline style (element.style / a style={} prop) instead — inline styles don't touch the shared stylesheet and have essentially no per-value overhead — or keep the fixed parts in a <style> tag and only vary what must vary.`
+    );
+}
+
+// The GC dropped these rules, then they started being used again and we had to
+// re-add them. Tell the user how to opt a rule out of collection entirely.
+function warnRulesRestored(classNames: string[]) {
+    let nowMs = Date.now();
+    if (nowMs - lastGcRestoreWarnMs < gcRestoreWarnThrottleMs) return;
+    lastGcRestoreWarnMs = nowMs;
+    let examples = classNames.slice(0, gcWarnExamplesMax).join(", ");
+    console.warn(
+        `typesafecss: garbage-collected CSS rules to bound style-recalc cost, but ${classNames.length} of them started being used again and had to be re-added (e.g. ${examples}). ` +
+        `Rules are dropped once they've been idle and are not applied to any element. If you need a rule to stick around, keep it applied to the DOM (e.g. an invisible <div> that uses the class) or use an inline style instead.`
+    );
 }
 
 function ensureSheet(document: Document, order: number): HTMLStyleElement {
@@ -168,6 +275,38 @@ function ensureSheet(document: Document, order: number): HTMLStyleElement {
 
 let pendingByOrder: Map<number, string[]> | undefined;
 
+// Queue rule strings to be inserted into their order's <style> on the next
+// delayFnc tick. Used both when a class is first generated and when the GC has
+// to restore a previously-removed rule that's requested again.
+function queueInsert(order: number, rules: string[]) {
+    if (!pendingByOrder) {
+        pendingByOrder = new Map();
+        delayFnc(() => {
+            measureBlock(function addCSS() {
+                if (!pendingByOrder) return;
+                let doc = globalThis.document;
+                if (doc) {
+                    for (let [order, ruleList] of pendingByOrder) {
+                        let el = ensureSheet(doc, order);
+                        let sheet = el.sheet;
+                        if (sheet) {
+                            for (let r of ruleList) {
+                                try { sheet.insertRule(r, sheet.cssRules.length); } catch { /* ignore invalid rule */ }
+                            }
+                        } else {
+                            el.textContent = (el.textContent || "") + "\n" + ruleList.join("\n");
+                        }
+                    }
+                }
+                pendingByOrder = undefined;
+            }, "typesafecss|insertStyleTag");
+        });
+    }
+    let arr = pendingByOrder.get(order);
+    if (!arr) { arr = []; pendingByOrder.set(order, arr); }
+    arr.push(...rules);
+}
+
 function getClassNames(styles: Styles): string[] {
     return measureBlock(() => {
         let document = globalThis.document;
@@ -180,11 +319,16 @@ function getClassNames(styles: Styles): string[] {
         if (lastDoc !== document) {
             lastDoc = document;
             ruleByClass.clear();
+            removedRules.clear();
             sheetByOrder.clear();
             pendingByOrder = undefined;
         }
+        ensureGCInterval();
         let nowMs = Date.now();
         let result: string[] = [];
+        // Classes the GC had dropped that this call resurrected — warned about
+        // after the loop so a churning render doesn't warn per-class.
+        let restoredThisCall: string[] = [];
         measureBlock(function generateCSS() {
             for (let [key, { value, order, suffix }] of Object.entries(styles)) {
                 let prependSelector = key.split(":").slice(1).join(":");
@@ -212,6 +356,20 @@ function getClassNames(styles: Styles): string[] {
                     continue;
                 }
 
+                // Requested again after the GC dropped it — restore the exact
+                // remembered rule to the stylesheet right now (don't wait for the
+                // next sweep) so the element isn't briefly unstyled.
+                let removed = removedRules.get(className);
+                if (removed) {
+                    removedRules.delete(className);
+                    removed.lastUsedMs = nowMs;
+                    ruleByClass.set(className, removed);
+                    queueInsert(removed.order, removed.rules);
+                    restoredThisCall.push(className);
+                    result.push(className);
+                    continue;
+                }
+
                 if (typeof value === "number" && !IS_NON_DIMENSIONAL.test(key.toLowerCase().replaceAll("-", ""))) {
                     value = value + "px";
                 }
@@ -223,38 +381,12 @@ function getClassNames(styles: Styles): string[] {
                     rules.push(`.trigger-hover:hover ${hoverInnerSelector}${contents}`);
                 }
                 ruleByClass.set(className, { order, rules, lastUsedMs: nowMs });
-
-                if (!pendingByOrder) {
-                    pendingByOrder = new Map();
-                    delayFnc(() => {
-                        measureBlock(function addCSS() {
-                            if (!pendingByOrder) return;
-                            let doc = globalThis.document;
-                            if (doc) {
-                                for (let [order, ruleList] of pendingByOrder) {
-                                    let el = ensureSheet(doc, order);
-                                    let sheet = el.sheet;
-                                    if (sheet) {
-                                        for (let r of ruleList) {
-                                            try { sheet.insertRule(r, sheet.cssRules.length); } catch { /* ignore invalid rule */ }
-                                        }
-                                    } else {
-                                        el.textContent = (el.textContent || "") + "\n" + ruleList.join("\n");
-                                    }
-                                }
-                            }
-                            pendingByOrder = undefined;
-                        }, "typesafecss|insertStyleTag");
-                    });
-                }
-                let arr = pendingByOrder.get(order);
-                if (!arr) { arr = []; pendingByOrder.set(order, arr); }
-                arr.push(...rules);
+                queueInsert(order, rules);
                 result.push(className);
             }
         }, "typesafecss|generateRawCSS");
 
-        if (gcEnabled && ruleByClass.size > gcMaxRules) scheduleGC();
+        if (restoredThisCall.length) warnRulesRestored(restoredThisCall);
         return result;
     }, "typesafecss|getClassNames");
 }

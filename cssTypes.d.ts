@@ -1,3 +1,14 @@
+// PERFORMANCE NOTE — dynamic values are expensive; prefer inline styles for them.
+// Every distinct value passed through css.* mints a new class and a new CSS rule
+// (e.g. css.width(`${pct}%`) driven each frame = one rule per frame). Rules
+// accumulate and, because every stylesheet mutation invalidates computed style
+// document-wide, style recalc gets steadily slower — roughly linear in the total
+// rule count. Inline styles (element.style / a style={} prop) don't touch the
+// shared stylesheet and have essentially no per-value overhead. So use css.* for
+// values from a small fixed set (they dedupe to a few rules); use an inline style
+// for anything that changes freely. Unused rules are garbage-collected to bound
+// this cost — if you need a rule to persist, keep it applied to the DOM (e.g. an
+// invisible <div> using the class) or use an inline style.
 
 export type Length = number | `${number}px` | `${number}%` | `${number}em` | `${number}rem` | `${number}vh` | `${number}vw` | `${number}vmin` | `${number}vmax` | `${number}ex` | `${number}ch` | `${number}cm` | `${number}mm` | `${number}in` | `${number}pt` | `${number}pc` | `calc(${string})` | `${number}lh` | `${number}q` | `${number}pc` | `${number}cap` | `${number}ic` | `${number}rlh` | `${number}svh` | `${number}svw` | `${number}lvh` | `${number}lvw` | `${number}dvh` | `${number}dvw` | `${number}dvmin` | `${number}dvmax`;
 export type LengthOrPercentage = Length | `${number}%`;
