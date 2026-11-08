@@ -51,17 +51,16 @@ const IS_NON_DIMENSIONAL = /acit|ex(?:s|g|n|p|$)|rph|grid|ows|mnc|ntw|ine[ch]|zo
 // here, keyed by its (unique) class name. `rules` is the 1-2 rule strings that
 // make up the class (2 when there's a :hover trigger). `lastUsedMs` is the wall
 // time we last handed this class out, used to garbage-collect stale rules.
-type RuleRec = { order: number; rules: string[]; lastUsedMs: number };
+type RuleRec = { order: number; rules: string[]; lastUsedMs: number; isHsl: boolean };
+type OrderSheets = { main: HTMLStyleElement; mainRecs: RuleRec[]; text: HTMLStyleElement; textRecs: Set<RuleRec> };
+const HSL_FUNCTION = /\bhsla?\(/i;
 let ruleByClass = new Map<string, RuleRec>();
 // Rules the GC has dropped from the stylesheet but still remembers, keyed by
 // class name. Dropping a rule must never mean a permanently-lost style: if the
 // class is requested again (a new css.* call) or reappears in the DOM, we
 // restore the exact remembered rule instead of silently rendering unstyled.
 let removedRules = new Map<string, RuleRec>();
-// One persistent <style> per order (0 = "soft" defaults, 1 = normal). We append
-// rules into these via insertRule instead of creating a fresh <style> per flush;
-// that keeps the <style> node count tiny and lets us delete individual rules.
-let sheetByOrder = new Map<number, HTMLStyleElement>();
+let sheetsByOrder = new Map<number, OrderSheets>();
 let lastDoc: unknown;
 
 // ---- Garbage collection of unused rules ------------------------------------
@@ -184,6 +183,7 @@ function gcSweep() {
     }
 
     let dirtyOrders = new Set<number>();
+    let evictedRecs = new Set<RuleRec>();
 
     // Evict stale candidates that no live element is using. We move them into
     // removedRules (still remembered) rather than forgetting them entirely, so a
@@ -197,6 +197,7 @@ function gcSweep() {
             ruleByClass.delete(className);
             removedRules.set(className, rec);
             dirtyOrders.add(rec.order);
+            evictedRecs.add(rec);
             evicted.push(className);
         }
     }
@@ -209,19 +210,13 @@ function gcSweep() {
         removedRules.delete(className);
         rec.lastUsedMs = nowMs;
         ruleByClass.set(className, rec);
-        dirtyOrders.add(rec.order);
+        queueInsert(rec);
         restored.push(className);
     }
 
-    // Rebuild only the sheets we changed. GC is infrequent, so a single
-    // O(rules-in-order) textContent rebuild here is fine; restored rules are
-    // already back in ruleByClass, so they reappear in the rebuilt text.
     for (let order of dirtyOrders) {
-        let el = sheetByOrder.get(order);
-        if (!el) continue;
-        let text: string[] = [];
-        for (let rec of ruleByClass.values()) if (rec.order === order) text.push(...rec.rules);
-        el.textContent = text.join("\n");
+        let sheets = sheetsByOrder.get(order);
+        if (sheets) removeRecs(sheets, evictedRecs);
     }
 
     gcEvictedLifetime += evicted.length;
@@ -259,26 +254,73 @@ function warnRulesRestored(classNames: string[]) {
     );
 }
 
-function ensureSheet(document: Document, order: number): HTMLStyleElement {
-    let el = sheetByOrder.get(order);
-    if (el && el.isConnected) return el;
-    el = document.createElement("style");
+function createStyleTag(document: Document, order: number): HTMLStyleElement {
+    let el = document.createElement("style");
     el.setAttribute("data-order", order.toString());
     // Keep the <style> nodes ordered in <head> by their order value so the
     // cascade still sees soft defaults (order 0) before normal rules (order 1).
     let siblings = Array.from(document.querySelectorAll(`style[data-order]`));
     let after = siblings.find(a => +(a.getAttribute("data-order") as any) > order);
     if (after) after.before(el); else document.head.append(el);
-    sheetByOrder.set(order, el);
     return el;
 }
 
-let pendingByOrder: Map<number, string[]> | undefined;
+function ensureSheets(document: Document, order: number): OrderSheets {
+    let existing = sheetsByOrder.get(order);
+    if (existing && existing.main.isConnected && existing.text.isConnected) return existing;
+    let sheets: OrderSheets = {
+        main: createStyleTag(document, order),
+        mainRecs: [],
+        text: createStyleTag(document, order),
+        textRecs: new Set(),
+    };
+    sheetsByOrder.set(order, sheets);
+    return sheets;
+}
 
-// Queue rule strings to be inserted into their order's <style> on the next
-// delayFnc tick. Used both when a class is first generated and when the GC has
-// to restore a previously-removed rule that's requested again.
-function queueInsert(order: number, rules: string[]) {
+function joinRules(recs: Iterable<RuleRec>): string {
+    return Array.from(recs).flatMap(rec => rec.rules).join("\n");
+}
+
+function insertRecs(sheets: OrderSheets, recs: RuleRec[]) {
+    let mainSheet = sheets.main.sheet;
+    let textRecs: RuleRec[] = [];
+    for (let rec of recs) {
+        if (rec.isHsl || !mainSheet) {
+            textRecs.push(rec);
+            sheets.textRecs.add(rec);
+            continue;
+        }
+        for (let rule of rec.rules) {
+            try {
+                mainSheet.insertRule(rule, mainSheet.cssRules.length);
+            } catch {
+                continue;
+            }
+            sheets.mainRecs.push(rec);
+        }
+    }
+    if (textRecs.length) sheets.text.append(joinRules(textRecs) + "\n");
+}
+
+function removeRecs(sheets: OrderSheets, removing: Set<RuleRec>) {
+    let mainSheet = sheets.main.sheet;
+    if (mainSheet) {
+        for (let i = sheets.mainRecs.length - 1; i >= 0; i--) {
+            if (removing.has(sheets.mainRecs[i])) mainSheet.deleteRule(i);
+        }
+        sheets.mainRecs = sheets.mainRecs.filter(rec => !removing.has(rec));
+    }
+    let textChanged = false;
+    for (let rec of removing) {
+        if (sheets.textRecs.delete(rec)) textChanged = true;
+    }
+    if (textChanged) sheets.text.textContent = joinRules(sheets.textRecs);
+}
+
+let pendingByOrder: Map<number, RuleRec[]> | undefined;
+
+function queueInsert(rec: RuleRec) {
     if (!pendingByOrder) {
         pendingByOrder = new Map();
         delayFnc(() => {
@@ -286,25 +328,20 @@ function queueInsert(order: number, rules: string[]) {
                 if (!pendingByOrder) return;
                 let doc = globalThis.document;
                 if (doc) {
-                    for (let [order, ruleList] of pendingByOrder) {
-                        let el = ensureSheet(doc, order);
-                        let sheet = el.sheet;
-                        if (sheet) {
-                            for (let r of ruleList) {
-                                try { sheet.insertRule(r, sheet.cssRules.length); } catch { /* ignore invalid rule */ }
-                            }
-                        } else {
-                            el.textContent = (el.textContent || "") + "\n" + ruleList.join("\n");
-                        }
+                    for (let [order, recs] of pendingByOrder) {
+                        insertRecs(ensureSheets(doc, order), recs);
                     }
                 }
                 pendingByOrder = undefined;
             }, "typesafecss|insertStyleTag");
         });
     }
-    let arr = pendingByOrder.get(order);
-    if (!arr) { arr = []; pendingByOrder.set(order, arr); }
-    arr.push(...rules);
+    let arr = pendingByOrder.get(rec.order);
+    if (!arr) {
+        arr = [];
+        pendingByOrder.set(rec.order, arr);
+    }
+    arr.push(rec);
 }
 
 function getClassNames(styles: Styles): string[] {
@@ -320,7 +357,7 @@ function getClassNames(styles: Styles): string[] {
             lastDoc = document;
             ruleByClass.clear();
             removedRules.clear();
-            sheetByOrder.clear();
+            sheetsByOrder.clear();
             pendingByOrder = undefined;
         }
         ensureGCInterval();
@@ -364,7 +401,7 @@ function getClassNames(styles: Styles): string[] {
                     removedRules.delete(className);
                     removed.lastUsedMs = nowMs;
                     ruleByClass.set(className, removed);
-                    queueInsert(removed.order, removed.rules);
+                    queueInsert(removed);
                     restoredThisCall.push(className);
                     result.push(className);
                     continue;
@@ -380,8 +417,9 @@ function getClassNames(styles: Styles): string[] {
                     let hoverInnerSelector = selector.replace(":hover", "");
                     rules.push(`.trigger-hover:hover ${hoverInnerSelector}${contents}`);
                 }
-                ruleByClass.set(className, { order, rules, lastUsedMs: nowMs });
-                queueInsert(order, rules);
+                let rec: RuleRec = { order, rules, lastUsedMs: nowMs, isHsl: HSL_FUNCTION.test(contents) };
+                ruleByClass.set(className, rec);
+                queueInsert(rec);
                 result.push(className);
             }
         }, "typesafecss|generateRawCSS");
