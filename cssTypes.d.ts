@@ -27,11 +27,13 @@ export type StrictStyles = {
     order?: number;
     alignSelf?: "auto" | "flex-start" | "flex-end" | "center" | "baseline" | "stretch" | "start" | "end";
     justifySelf?: "start" | "end" | "center" | "stretch" | "self-start" | "self-end" | "flex-start" | "flex-end" | "baseline";
+    justifyItems?: "start" | "end" | "center" | "stretch" | "self-start" | "self-end" | "flex-start" | "flex-end" | "baseline" | "legacy";
     position?: "static" | "relative" | "fixed" | "absolute" | "sticky";
     top?: LengthOrPercentage; // Length values or percentages
     right?: LengthOrPercentage; // Length values or percentages
     bottom?: LengthOrPercentage; // Length values or percentages
     left?: LengthOrPercentage; // Length values or percentages
+    inset?: LengthOrPercentageOrAuto | `${LengthOrPercentageOrAuto} ${LengthOrPercentageOrAuto}`; // Shorthand for top/right/bottom/left
     width?: LengthOrPercentageOrAuto | "auto" | "fit-content"; // Length values, percentages, or "auto"
     height?: LengthOrPercentageOrAuto | "auto" | "fit-content"; // Length values, percentages, or "auto"
     minWidth?: LengthOrPercentage; // Length values or percentages
@@ -56,6 +58,11 @@ export type StrictStyles = {
     textAlign?: "left" | "right" | "center" | "justify" | "justify-all" | "start" | "end";
     textTransform?: "none" | "capitalize" | "uppercase" | "lowercase" | "full-width" | "full-size-kana";
     textDecoration?: "none" | "underline" | "overline" | "line-through";
+    textDecorationLine?: "none" | "underline" | "overline" | "line-through" | "blink" | string; // Space-separated combinations allowed
+    textDecorationColor?: string; // Color values
+    textDecorationStyle?: "solid" | "double" | "dotted" | "dashed" | "wavy";
+    textDecorationThickness?: "auto" | "from-font" | LengthOrPercentage;
+    textUnderlineOffset?: "auto" | LengthOrPercentage;
     border?: string; // A shorthand property for border-width, border-style, and border-color
     borderRadius?: LengthOrPercentage; // Length values or percentages
     opacity?: number; // A number between 0 (fully transparent) and 1 (fully opaque)
@@ -102,6 +109,13 @@ export type StrictStyles = {
     borderStyle?: "none" | "hidden" | "dotted" | "dashed" | "solid" | "double" | "groove" | "ridge" | "inset" | "outset";
     visibility?: "visible" | "hidden" | "collapse";
     whiteSpace?: "normal" | "nowrap" | "pre" | "pre-wrap" | "pre-line";
+    wordBreak?: "normal" | "break-all" | "keep-all" | "break-word";
+    hyphens?: "none" | "manual" | "auto";
+    wordSpacing?: string | number; // Length values or "normal"
+    textIndent?: LengthOrPercentage;
+    tabSize?: number | string; // integer or length value
+    lineClamp?: number | "none";
+    WebkitLineClamp?: number | "none";
     letterSpacing?: string | number; // Length values
     // "1" results in 1X the font size, "1px" is 1px
     lineHeight?: Exclude<Length, number> | `${number}`;
@@ -128,6 +142,7 @@ export type StrictStyles = {
     maskImage?: string; // e.g., "radial-gradient(ellipse at center, rgba(0,0,0,1) 70%)"
     gridTemplateColumns?: string; // e.g., "auto 1fr auto", "repeat(3, 1fr)"
     gridTemplateRows?: string; // e.g., "auto 1fr auto", "repeat(3, 1fr)"
+    gridTemplateAreas?: string; // e.g., "'header header' 'sidebar main'"
     gridColumnGap?: string | number; // Length values
     gridRowGap?: string | number; // Length values
     gridColumnStart?: string; // e.g., "1", "2", "span 2"
@@ -226,9 +241,30 @@ export type StrictStyles = {
     // top | center | bottom | left | right | "25% 75%"
     objectPosition?: string;
     outline?: string; // A shorthand property for outline-width, outline-style, and outline-color
+    outlineColor?: string; // Color values or "invert"
+    outlineStyle?: "none" | "hidden" | "dotted" | "dashed" | "solid" | "double" | "groove" | "ridge" | "inset" | "outset" | "auto";
+    outlineWidth?: string | number; // Length values or "thin" | "medium" | "thick"
+    outlineOffset?: string | number; // Length values
 
     aspectRatio?: `${number} / ${number}`;
 
     zoom?: "normal" | "unset" | "initial" | number;
     mixBlendMode?: "normal" | "multiply" | "screen" | "overlay" | "darken" | "lighten" | "color-dodge" | "color-burn" | "hard-light" | "soft-light" | "difference" | "exclusion" | "hue" | "saturation" | "color" | "luminosity";
+    isolation?: "auto" | "isolate";
+
+    stroke?: string; // Color values or "none"
+    strokeWidth?: string | number; // Length values or percentages
+    strokeOpacity?: number; // From 0 to 1
+    strokeDasharray?: string; // e.g., "4", "4 1 2"
+    strokeDashoffset?: string | number; // Length values or percentages
+    strokeLinecap?: "butt" | "round" | "square";
+    strokeLinejoin?: "miter" | "round" | "bevel" | "arcs" | "miter-clip";
+    strokeMiterlimit?: number;
+
+    accentColor?: string; // Color values or "auto"
+    touchAction?: "auto" | "none" | "pan-x" | "pan-left" | "pan-right" | "pan-y" | "pan-up" | "pan-down" | "pinch-zoom" | "manipulation" | string; // Space-separated combinations allowed
+    scrollSnapType?: "none" | "x" | "y" | "block" | "inline" | "both" | `${"x" | "y" | "block" | "inline" | "both"} ${"mandatory" | "proximity"}`;
+    scrollSnapAlign?: "none" | "start" | "end" | "center" | string; // Two values allowed, e.g. "start end"
+    scrollbarWidth?: "auto" | "thin" | "none";
+    scrollbarColor?: string; // "auto" or two color values, e.g. "red orange"
 };
